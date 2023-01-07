@@ -2,7 +2,7 @@ import { Mongo } from "./Mongo";
 import { ObjectID, ObjectId } from "mongodb";
 import _ from "lodash";
 import { SearchExpression, OrderExpression } from "./models/SearchExpression";
-import { Message, Thread } from "./models/Thread";
+import { Message, StartThread, Thread } from "./models/Thread";
 
 /**
  * The name of the mongo collection for this resource
@@ -11,17 +11,13 @@ const COLLECTION_NAME = 'message';
 
 export namespace MessageServletUtils {
 	/**
-	 * Performs a "search" on the feature collection.
-	 * @param {*} searchRequest - search request.
-	 * @returns a promise that resolves to the paginated data.
+	 * 
 	 */
 	export async function search(searchRequest: SearchExpression) {
 		const defaultMaxPageSize = 1000;
 
 		/**
-		 * Translates an ADA sort expression to something more mongo friendly.
-		 * @param {*} sortExpression - the ada sort expression
-		 * @returns mongo "sort" parameters.
+		 * 
 		 */
 		const translateSortExpression = (sortExpression: OrderExpression) => {
 			return {
@@ -31,14 +27,16 @@ export namespace MessageServletUtils {
 		};
 
 		/**
-		 * Translates an ADA filter expression to something more mongo friendly.
-		 * @param {*} the ada filter expression
-		 * @returns mongo "find" parameters.
+		 * 
 		 */
 		const translateFilterExpression = (filterExpression: any) => {
 			return _(filterExpression)
 				.mapValues((filterValue) => {
-					`.*${filterValue}.*`;
+					if ( typeof filterValue === "string" ) {
+						return { $regex: `.*${filterValue}.*`};
+					}
+
+					return filterValue;
 				})
 				.value();
 		};
@@ -53,9 +51,11 @@ export namespace MessageServletUtils {
 			// of records. This translates a single-digit page to its equivalent in row numbers.
 			const pageOffset = searchRequest.page >= 1 ? pageSize * searchRequest.page : 0;
 
-			const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+			const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-			const productSearchQuery = sitelineMongo
+			console.log(translateFilterExpression(searchRequest.filterExpression));
+
+			const productSearchQuery = collection
 				.find(
 					searchRequest.filterExpression
 						? translateFilterExpression(searchRequest.filterExpression)
@@ -69,7 +69,7 @@ export namespace MessageServletUtils {
 				)
 				.skip(pageOffset);
 
-			const pageInfoQuery = sitelineMongo.countDocuments(
+			const pageInfoQuery = collection.countDocuments(
 				searchRequest.filterExpression
 					? translateFilterExpression(searchRequest.filterExpression)
 					: {},
@@ -107,9 +107,9 @@ export namespace MessageServletUtils {
 
 		const connection = await Mongo.getConnection();
 
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-		const productQuery = (await sitelineMongo.findOne<Thread>({ "_id": new ObjectId(threadId)}));
+		const productQuery = (await collection.findOne<Thread>({ "_id": new ObjectId(threadId)}));
 		
 		if ( productQuery === null) {
 			return {
@@ -117,7 +117,7 @@ export namespace MessageServletUtils {
 			}
 		}
 
-		// const userQuery = await sitelineMongo.findOne({ "_id": new ObjectId(productQuery.userId)});
+		// const userQuery = await collection.findOne({ "_id": new ObjectId(productQuery.userId)});
 
 		return {
 			data: {...productQuery}
@@ -126,22 +126,54 @@ export namespace MessageServletUtils {
 
 
 	/**
-	 * Add a single order.
-	 * @param shopId - the shop ID.
-	 * @param productForPost - the product details to be created.
+	 * 
 	 */
-	export async function sendMessage(threadId: string, body: { message: string}): Promise<any> {
+	export async function startThread(startThread: StartThread): Promise<any> {
+
+		const initialMessage = startThread.initialMessage;
+
+		if ( !initialMessage || !startThread.userIds) {
+			return {
+				error: ""
+			}
+		}
 		const connection = await Mongo.getConnection();
 
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-		const productQuery = await sitelineMongo.updateOne({ _id: new ObjectId(threadId) }, { $push: { chat: {
-            userId: "",
-            timestamp: Date.now(),
-            message: body.message
-        }} }, {
-            upsert: true
-        });
+		const query = await collection.insertOne({
+			userIds: startThread.userIds,
+			chat: [
+				{
+					timestamp: initialMessage.timestamp,
+					message: initialMessage.message,
+					userId: initialMessage.userId
+				}
+			]
+		});
+
+		return {
+			data: query
+		};
+	}
+
+	/**
+	 * 
+	 */
+	export async function sendMessage(threadId: string, body: { message: string, userId: string }): Promise<any> {
+		const connection = await Mongo.getConnection();
+
+		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
+
+		const productQuery = await collection.updateOne({ _id: new ObjectId(threadId) }, { 
+			$push: { 
+					chat: {
+						userId: new ObjectId(body.userId),
+						timestamp: Date.now(),
+						message: body.message
+					}
+				}
+		});
 
 		return {
 			data: productQuery

@@ -1,5 +1,5 @@
 
 export interface UserLoginRequest {
-    username: string;
+    accountIdOrDisplayName: string;
     password: string
 }

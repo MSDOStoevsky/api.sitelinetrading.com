@@ -1,6 +1,7 @@
 import { Mongo } from "./Mongo";
-import { ObjectId } from "mongodb";
+import { Filter, ObjectId, Document } from "mongodb";
 import { v4 as uuidv4 } from 'uuid';
+import * as jwt from "jsonwebtoken";
 import { SearchExpression, OrderExpression } from "./models/SearchExpression";
 import { Product } from "./models/Product";
 import { UserLoginRequest } from "./models/UserLoginRequest";
@@ -15,8 +16,7 @@ const COLLECTION_NAME = 'user';
 export namespace UserServletUtils {
 
 	/**
-	 * Get a single user.
-	 * @param userId - the unique user ID.
+     * 
 	 */
 	export async function getUser(userId: string) {
 
@@ -25,91 +25,88 @@ export namespace UserServletUtils {
 
 		const userQueryResult = await sitelineMongo.findOne({ "_id": new ObjectId(userId)});
 
-		return {
-			data: userQueryResult
-		};
+		return userQueryResult ? {
+			data: {
+                userId: userQueryResult._id,
+                displayName: userQueryResult.displayName,
+                createdTimestamp: userQueryResult.createdTimestamp,
+                emailPreferences: userQueryResult.emailPreferences
+            }
+		} : null;
 	}
 
 	/**
-	 * Get a single user.
-	 * @param userId - the unique user ID.
-	 */
-     export async function getMe() {
-
-		const connection = await Mongo.getConnection();
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const userQueryResult = await sitelineMongo.findOne({ "_id": new ObjectId("")});
-
-		return {
-			data: userQueryResult
-		};
-	}
-
-	/**
-     * Create a feature document.
-     * @param {Record<string, any>} createProductRequest - should look something like this
-     * {
-            featureName: 'name',
-            description: 'name',
-            createdBy: 'Placeholder',
-            updatedBy: 'Placeholder',
-            createdTimestamp: new Date().toISOString(),
-            updatedTimestamp: new Date().toISOString()
-        }
-        @returns a promise that resolves to the insertion of a mongo record.
+     * 
      */
     export async function login(userLoginRequest: UserLoginRequest) {
 		const connection = await Mongo.getConnection();
 		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-        console.log(sitelineMongo, userLoginRequest);
-        const userQuery = { $or: [{
-            "username": userLoginRequest.username
-        }] };
-
+        const userQuery: Filter<Document> = { $or: [
+            {"displayName": userLoginRequest.accountIdOrDisplayName}
+        ] }
+        try { 
+            userQuery.$or.push( {"_id": new ObjectId(userLoginRequest.accountIdOrDisplayName)} ) ;
+        } catch (error) {
+            console.log("this couldn't possibly be an ID");
+        } 
         const userResult = await sitelineMongo.findOne(userQuery) as any;
-        const isPasswordMatch = await bcrypt.compare(userLoginRequest.password, userResult.password);
 
-        if (!isPasswordMatch) {
-            throw Error("Password is incorrect");
+        if (!userResult) {
+            return {
+                status: "error",
+                message: "Something is wrong with either the account ID or password"
+            }
         }
 
-        const sessionToken = uuidv4();
-
-        await sitelineMongo.updateOne(userQuery, {$set: {
-            "session_token": sessionToken
-        }});
-
+        const isPasswordMatch = await bcrypt.compare(userLoginRequest.password, userResult.password);
         connection.close();
-        return {
-            status: "success",
-            user: userResult,
-            sessionToken: uuidv4()
-        };
+
+        if (!isPasswordMatch) {
+            return {
+                status: "error",
+                message: "password is incorrect"
+            }
+        }
+        
+
+        try {
+            const token = jwt.sign({ id: `${userResult._id}`, password: userLoginRequest.password}, 'shhhhh', {
+                expiresIn: "24h"
+            });
+            return {
+                status: "success",
+                token
+            };
+        } catch(error) {
+            console.log(error);
+        }
         
     }
 
+    /**
+     * 
+     */
 	export async function create(createUserRequest: CreateUserRequest) {
-
-        
         const connection = await Mongo.getConnection();
         const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
         const hashedPassword = await bcrypt.hash(createUserRequest.password, 10);
 
-        console.log(hashedPassword);
         try {
-            await collection.insertOne(
+            const result = await collection.insertOne(
                 {
-                    email: createUserRequest.email,
-                    username: createUserRequest.username || createUserRequest.email,
+                    displayName: createUserRequest.displayName,
                     password: hashedPassword,
-                    created_timestamp: new Date()
+                    createdTimestamp: Date.now(),
+                    emailPreferences: "none"
                 }
             );
             return {
-                status: "success"
+                status: "success",
+                token: jwt.sign({id: `${result.insertedId}`, password: createUserRequest.password}, 'shhhhh', {
+                    expiresIn: "24h"
+                })
             };
         } catch (error) {
             return {

@@ -1,37 +1,25 @@
 /**
  * The definition of a User
  */
- export interface User {
+export interface User {
 	/**
 	 * The unique user Id.
 	 */
-	_id: string;
+	userId: string;
 	/**
 	 * The user's linked email address.
 	 */
-	email: string;
+	email: string | undefined;
 	/**
 	 * The user's username.
 	 */
-	username: string;
+	displayName: string | undefined;
 	/**
 	 * The timestamp of when the user created their account.
 	 */
-	created_timestamp: string;
+	createdTimestamp: string;
 	/**
 	 * 
 	 */
-	settings?: UserSettings;
-
-    feedback: Array<Feedback>;
-}
-
-export interface UserSettings {
-	email_notifications: boolean;
-}
-
-export interface Feedback {
-    userId: string;
-    
-    message: string;
+	emailPreferences: "none" | "messageCenter" | "everything";
 }

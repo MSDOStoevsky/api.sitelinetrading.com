@@ -1,6 +1,8 @@
 import express from "express";
 import _ from "lodash";
 import { ProductServletUtils } from "./ProductServletUtils";
+import { isBadRequest } from "./utils/isBadRequest";
+import * as jwt from "jsonwebtoken";
 
 export namespace ProductServlet {
 	/**
@@ -9,30 +11,55 @@ export namespace ProductServlet {
 	export const PATH = "/product";
 	
 	/**
-	 * The router associated with this servlet.
+	 * 
 	 */
 	export const router = express.Router();
 
 	/**
-	 * The global product search endpoint
+	 * 
 	 */
 	router.post("/search", async (request, result) => {
 		result.json(await ProductServletUtils.search(request.body));
 	});
 
 	/**
-	 * The single product get endpoint.
+	 * 
 	 */
 	router.get("/:id", async (request, result) => {
 		const productId = request.params.id;
 		result.json(await ProductServletUtils.getProduct(productId));
 	});
 
+	/**
+	 * 
+	 */
+	router.patch("/:id", async (request, result) => {
+		const productId = request.params.id;
+		if (isBadRequest(request)) {
+			result.status(400);
+		}
+		const token = _.split(request.headers.authorization, " ")[1];
+		jwt.verify(token, "shhhhh", async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				const userId = decoded.id;
+				const productForUpdate = request.body;
+				if (userId !== productForUpdate.userId) {
+					result.status(500).json({status: "failure", message: "you do not have permission"});
+				} else {
+					const updateProductResult = await ProductServletUtils.updateProduct(productId, productForUpdate);
+					result.json(updateProductResult);
+				}
+			}
+		});
+	});
+
 
 	/**
-	 * The global product search endpoint
+	 * 
 	 */
-	 router.post("/", async (request, result) => {
+	router.post("/", async (request, result) => {
 		result.json(await ProductServletUtils.addProduct(request.body));
 	});
 }

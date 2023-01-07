@@ -9,12 +9,12 @@ export namespace MessageServlet {
 	export const PATH = "/message";
 	
 	/**
-	 * The router associated with this servlet.
+	 * 
 	 */
 	export const router = express.Router();
 
 	/**
-	 * The global product search endpoint
+	 * 
 	 */
 	router.post("/search", async (request, result) => {
 		result.json(await MessageServletUtils.search(request.body));
@@ -34,5 +34,12 @@ export namespace MessageServlet {
 	 router.post("/:id", async (request, result) => {
 		const threadId = request.params.id;
 		result.json(await MessageServletUtils.sendMessage(threadId, request.body));
+	});
+
+	/**
+     * 
+	 */
+	router.post("/", async (request, result) => {
+		result.json(await MessageServletUtils.startThread(request.body));
 	});
 }

@@ -1,30 +1,50 @@
 import express from "express";
 import _ from "lodash";
+import * as jwt from "jsonwebtoken";
 import { UserServletUtils } from "./UserServletUtils";
+import { isBadRequest } from "./utils/isBadRequest";
 
 export namespace UserServlet {
 	/**
-	 * The servlet base path.
+	 * 
 	 */
 	export const PATH = "/user";
 	/**
-	 * The router associated with this servlet.
+	 * 
 	 */
 	export const router = express.Router();
 
 	/**
-	 * The single product get endpoint.
+	 * 
 	 */
-	router.get("/:id", async (request, result) => {
-		const userId = request.params.id;
-		result.json(await UserServletUtils.getUser(userId));
+	router.get("/me", async (request, result) => {
+		if (isBadRequest(request)) {
+			result.status(400);
+		}
+		const token = _.split(request.headers.authorization, " ")[1];
+		jwt.verify(token, "shhhhh", async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				const userId = decoded.id;
+				const user = await UserServletUtils.getUser(userId);
+				if (!user) {
+					result.status(500).json({ status: "error"});
+				}
+				result.json(user);
+			}
+		});
 	});
 
 	/**
-	 * The single product get endpoint.
+	 * 
 	 */
-	router.get("/me", async (request, result) => {
-		result.json(await UserServletUtils.getMe());
+	router.get("/:id", async (request, result) => {
+		if (isBadRequest(request)) {
+			result.status(400);
+		}
+		const userId = request.params.id;
+		result.json(await UserServletUtils.getUser(userId));
 	});
 
 	/**
@@ -43,10 +63,10 @@ export namespace UserServlet {
 	/**
 	 * 
 	 */
-	router.post("/create", async ( request, result) => {
+	router.post("/", async ( request, result) => {
 		try {
 			const createResult = await UserServletUtils.create(request.body);
-            result.json(createResult);
+            result.status(200).json(createResult);
 		} catch(error) {
 			result.status(500).json(error);
 		}

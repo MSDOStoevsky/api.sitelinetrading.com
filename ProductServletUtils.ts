@@ -11,17 +11,13 @@ const COLLECTION_NAME = 'product';
 
 export namespace ProductServletUtils {
 	/**
-	 * Performs a "search" on the feature collection.
-	 * @param {*} searchRequest - search request.
-	 * @returns a promise that resolves to the paginated data.
+	 * 
 	 */
 	export async function search(searchRequest: SearchExpression) {
 		const defaultMaxPageSize = 1000;
 
 		/**
-		 * Translates an ADA sort expression to something more mongo friendly.
-		 * @param {*} sortExpression - the ada sort expression
-		 * @returns mongo "sort" parameters.
+		 * 
 		 */
 		const translateSortExpression = (sortExpression: OrderExpression) => {
 			return {
@@ -31,14 +27,15 @@ export namespace ProductServletUtils {
 		};
 
 		/**
-		 * Translates an ADA filter expression to something more mongo friendly.
-		 * @param {*} the ada filter expression
-		 * @returns mongo "find" parameters.
+		 * 
 		 */
 		const translateFilterExpression = (filterExpression: any) => {
 			return _(filterExpression)
-				.mapValues((filterValue) => {
-					`.*${filterValue}.*`;
+				.mapValues((filterValue, key) => {
+					if ( key === "userId") {
+						return filterValue;
+					}
+					return `.*${filterValue}.*`;
 				})
 				.value();
 		};
@@ -53,9 +50,9 @@ export namespace ProductServletUtils {
 			// of records. This translates a single-digit page to its equivalent in row numbers.
 			const pageOffset = searchRequest.page >= 1 ? pageSize * searchRequest.page : 0;
 
-			const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+			const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-			const productSearchQuery = sitelineMongo
+			const productSearchQuery = collection
 				.find(
 					searchRequest.filterExpression
 						? translateFilterExpression(searchRequest.filterExpression)
@@ -69,7 +66,7 @@ export namespace ProductServletUtils {
 				)
 				.skip(pageOffset);
 
-			const pageInfoQuery = sitelineMongo.countDocuments(
+			const pageInfoQuery = collection.countDocuments(
 				searchRequest.filterExpression
 					? translateFilterExpression(searchRequest.filterExpression)
 					: {},
@@ -101,16 +98,14 @@ export namespace ProductServletUtils {
 	}
 
 	/**
-	 * Get a single product by ID.
-	 * @param productId - the unique product ID.
+	 * 
 	 */
 	export async function getProduct(productId: string) {
 
 		const connection = await Mongo.getConnection();
 
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const productQuery = (await sitelineMongo.findOne<Product>({ "_id": new ObjectId(productId)}));
+		const productCollection = await Mongo.getCollection(connection, COLLECTION_NAME);
+		const productQuery = (await productCollection.findOne<Product>({ "_id": new ObjectId(productId)}));
 		
 		if ( productQuery === null) {
 			return {
@@ -118,25 +113,38 @@ export namespace ProductServletUtils {
 			}
 		}
 
-		// const userQuery = await sitelineMongo.findOne({ "_id": new ObjectId(productQuery.userId)});
+		const userCollection = await Mongo.getCollection(connection, "user");
+		const userQuery = await userCollection.findOne({ "_id": new ObjectId(productQuery.userId) }, { projection: { "displayName": 1, "_id": 0} });
 
 		return {
-			data: {...productQuery}
+			data: {...productQuery, ...userQuery}
 		};
 	}
 
 
 	/**
-	 * Add a single order.
-	 * @param shopId - the shop ID.
-	 * @param productForPost - the product details to be created.
+	 * 
 	 */
 	export async function addProduct(productForPost: Product): Promise<any> {
 		const connection = await Mongo.getConnection();
 
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-		const productQuery = await sitelineMongo.insertOne(productForPost);
+		const productQuery = await collection.insertOne(productForPost);
+
+		return {
+			data: productQuery
+		};
+	}
+
+	export async function updateProduct(productId: string, productForUpdate: Partial<Product>): Promise<any> {
+		const connection = await Mongo.getConnection();
+
+		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
+
+		const productQuery = await collection.updateOne({ _id: new ObjectId(productId)}, {
+			$set: productForUpdate
+		});
 
 		return {
 			data: productQuery
