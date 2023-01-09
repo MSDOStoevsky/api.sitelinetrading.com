@@ -3,6 +3,7 @@ import { ObjectID, ObjectId } from "mongodb";
 import _ from "lodash";
 import { SearchExpression, OrderExpression } from "./models/SearchExpression";
 import { Message, StartThread, Thread } from "./models/Thread";
+import { Console } from "console";
 
 /**
  * The name of the mongo collection for this resource
@@ -13,18 +14,8 @@ export namespace MessageServletUtils {
 	/**
 	 * 
 	 */
-	export async function search(searchRequest: SearchExpression) {
+	export async function search(userId: string, searchRequest: SearchExpression) {
 		const defaultMaxPageSize = 1000;
-
-		/**
-		 * 
-		 */
-		const translateSortExpression = (sortExpression: OrderExpression) => {
-			return {
-				[sortExpression.field]:
-					sortExpression.order === "ASC" ? -1 : sortExpression.order === "DESC" ? 1 : -1
-			};
-		};
 
 		/**
 		 * 
@@ -57,22 +48,22 @@ export namespace MessageServletUtils {
 
 			const productSearchQuery = collection
 				.find(
-					searchRequest.filterExpression
-						? translateFilterExpression(searchRequest.filterExpression)
-						: {},
 					{
-						/*sort:
-							searchRequest.orderBy &&
-							translateSortExpression(searchRequest.orderBy),*/
-						limit: pageSize
+						// ...translateFilterExpression(searchRequest.filterExpression),
+						"userIds": userId
+					},
+					{
+						limit: pageSize,
+						projection: { "chat": 0}
 					}
 				)
 				.skip(pageOffset);
 
 			const pageInfoQuery = collection.countDocuments(
-				searchRequest.filterExpression
-					? translateFilterExpression(searchRequest.filterExpression)
-					: {},
+				{
+					// ...translateFilterExpression(searchRequest.filterExpression),
+					"userIds": userId
+				},
 				{
 					/*sort:
 						searchRequest.orderBy &&
@@ -145,7 +136,7 @@ export namespace MessageServletUtils {
 			userIds: startThread.userIds,
 			chat: [
 				{
-					timestamp: initialMessage.timestamp,
+					timestamp: Date.now(),
 					message: initialMessage.message,
 					userId: initialMessage.userId
 				}
@@ -168,7 +159,7 @@ export namespace MessageServletUtils {
 		const productQuery = await collection.updateOne({ _id: new ObjectId(threadId) }, { 
 			$push: { 
 					chat: {
-						userId: new ObjectId(body.userId),
+						userId: body.userId,
 						timestamp: Date.now(),
 						message: body.message
 					}

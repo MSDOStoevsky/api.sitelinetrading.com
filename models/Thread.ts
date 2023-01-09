@@ -8,7 +8,7 @@ export interface Thread {
 
 export interface StartThread {
     userIds: [string, string];
-    initialMessage: Omit<Message, "timestmap">;
+    initialMessage: Omit<Message, "timestamp">;
 }
 
 export interface Message extends Partial<User>{

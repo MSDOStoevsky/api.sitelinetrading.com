@@ -1,5 +1,5 @@
 import { Mongo } from "./Mongo";
-import { ObjectID, ObjectId } from "mongodb";
+import { ObjectID, ObjectId, Sort } from "mongodb";
 import _ from "lodash";
 import { SearchExpression, OrderExpression } from "./models/SearchExpression";
 import { Product } from "./models/Product";
@@ -19,10 +19,10 @@ export namespace ProductServletUtils {
 		/**
 		 * 
 		 */
-		const translateSortExpression = (sortExpression: OrderExpression) => {
+		const translateSortExpression = (sortExpression: OrderExpression): Sort => {
 			return {
 				[sortExpression.field]:
-					sortExpression.order === "ASC" ? -1 : sortExpression.order === "DESC" ? 1 : -1
+					sortExpression.order === "ASC" ? 1 : sortExpression.order === "DESC" ? -1 : -1
 			};
 		};
 
@@ -35,7 +35,13 @@ export namespace ProductServletUtils {
 					if ( key === "userId") {
 						return filterValue;
 					}
-					return `.*${filterValue}.*`;
+					if ( typeof filterValue === "string" ) {
+						return { $regex: `.*${filterValue}.*`, $options: "i" };
+					}
+
+					if ( typeof filterValue === "boolean" ) {
+						return filterValue;
+					}
 				})
 				.value();
 		};
@@ -51,16 +57,15 @@ export namespace ProductServletUtils {
 			const pageOffset = searchRequest.page >= 1 ? pageSize * searchRequest.page : 0;
 
 			const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
 			const productSearchQuery = collection
 				.find(
 					searchRequest.filterExpression
 						? translateFilterExpression(searchRequest.filterExpression)
 						: {},
 					{
-						/*sort:
+						sort:
 							searchRequest.orderBy &&
-							translateSortExpression(searchRequest.orderBy),*/
+							translateSortExpression(searchRequest.orderBy),
 						limit: pageSize
 					}
 				)
@@ -69,12 +74,7 @@ export namespace ProductServletUtils {
 			const pageInfoQuery = collection.countDocuments(
 				searchRequest.filterExpression
 					? translateFilterExpression(searchRequest.filterExpression)
-					: {},
-				{
-					/*sort:
-						searchRequest.orderBy &&
-						translateSortExpression(searchRequest.orderBy),*/
-				});
+					: {});
 
 			const data = await productSearchQuery.toArray();
 			const count = await pageInfoQuery;
@@ -130,7 +130,8 @@ export namespace ProductServletUtils {
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-		const productQuery = await collection.insertOne(productForPost);
+		const productQuery = await collection.insertOne({...productForPost, 
+			createdTimestamp: Date.now(), updatedTimestamp: Date.now()});
 
 		return {
 			data: productQuery
@@ -143,8 +144,20 @@ export namespace ProductServletUtils {
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
 		const productQuery = await collection.updateOne({ _id: new ObjectId(productId)}, {
-			$set: productForUpdate
+			$set: {...productForUpdate, updatedTimestamp: Date.now()}
 		});
+
+		return {
+			data: productQuery
+		};
+	}
+
+	export async function deleteProduct(productId: string): Promise<any> {
+		const connection = await Mongo.getConnection();
+
+		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
+
+		const productQuery = await collection.deleteMany({ _id: new ObjectId(productId)});
 
 		return {
 			data: productQuery
