@@ -27,7 +27,7 @@ export namespace UserServlet {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
 				const userId = decoded.id;
-				const user = await UserServletUtils.getUser(userId);
+				const user = await UserServletUtils.getMe(userId);
 				if (!user) {
 					result.status(500).json({ status: "error"});
 				}
@@ -45,6 +45,16 @@ export namespace UserServlet {
 		}
 		const userId = request.params.id;
 		result.json(await UserServletUtils.getUser(userId));
+	});
+
+	/**
+	 * 
+	 */
+	router.post("/batch", async (request, result) => {
+		if (isBadRequest(request)) {
+			result.status(400);
+		}
+		result.json(await UserServletUtils.getUsers(request.body.userIds));
 	});
 
 	/**

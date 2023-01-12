@@ -11,7 +11,7 @@ export interface Product {
 
     openToTrade: boolean;
 
-    addedTimestamp: string;
+    createdTimestamp: string;
 
     updatedTimestamp: string;
 }

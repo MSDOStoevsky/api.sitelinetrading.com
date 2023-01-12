@@ -46,31 +46,30 @@ export namespace MessageServletUtils {
 
 			console.log(translateFilterExpression(searchRequest.filterExpression));
 
-			const productSearchQuery = collection
+			const searchQuery = collection
 				.find(
 					{
-						// ...translateFilterExpression(searchRequest.filterExpression),
 						"userIds": userId
 					},
 					{
 						limit: pageSize,
-						projection: { "chat": 0}
+						projection: { "chat": 0 }
 					}
 				)
 				.skip(pageOffset);
 
 			const pageInfoQuery = collection.countDocuments(
 				{
-					// ...translateFilterExpression(searchRequest.filterExpression),
 					"userIds": userId
 				},
 				{
+					limit: pageSize,
 					/*sort:
 						searchRequest.orderBy &&
 						translateSortExpression(searchRequest.orderBy),*/
 				});
 
-			const data = await productSearchQuery.toArray();
+			const data = await searchQuery.toArray();
 			const count = await pageInfoQuery;
 
 			return {
@@ -100,7 +99,7 @@ export namespace MessageServletUtils {
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
-		const productQuery = (await collection.findOne<Thread>({ "_id": new ObjectId(threadId)}));
+		const productQuery = await collection.findOne<Thread>({ "_id": new ObjectId(threadId)});
 		
 		if ( productQuery === null) {
 			return {

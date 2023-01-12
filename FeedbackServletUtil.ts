@@ -1,6 +1,7 @@
 import { Mongo } from "./Mongo";
 import { ObjectId } from "mongodb";
 import { Feedback, UserFeedback } from "./models/Feedback";
+import { User } from "./models/User";
 
 /**
  * The name of the mongo collection for this resource
@@ -15,11 +16,24 @@ export namespace FeedbackServletUtil {
 	export async function getUserFeedback(userId: string) {
 		const connection = await Mongo.getConnection();
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
+		const userCollection = await Mongo.getCollection(connection, "users");
 
-		const feedbackQueryResult = await collection.findOne({ "userId": userId });
+		const feedbackQueryResult = await collection.findOne<UserFeedback>({ "userId": userId });
+		if ( !feedbackQueryResult ) {
+			return {
+				data: []
+			}
+		}
+		const feedbackWithDisplayName = feedbackQueryResult.feedback.map(async (userPost) => {
+			const userResult = userCollection.findOne<User>({ _id: new ObjectId(userPost.fromId) });
+			return {
+				...userPost,
+				fromDisplayName: userResult || null
+			}
+		})
 
 		return {
-			data: feedbackQueryResult || []
+			data: feedbackWithDisplayName
 		};
 	}
 
@@ -47,7 +61,7 @@ export namespace FeedbackServletUtil {
 		
 		const userFeedbackUpdateQueryResult = await collection.updateOne({ _id: new ObjectId(id) }, {
 			$push: {
-				feedback: newFeedback
+				feedback: {...newFeedback}
 			}
 		});
 		return userFeedbackUpdateQueryResult;

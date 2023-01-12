@@ -28,6 +28,38 @@ export namespace UserServletUtils {
 		return userQueryResult ? {
 			data: {
                 userId: userQueryResult._id,
+                displayName: userQueryResult.displayName
+            }
+		} : null;
+	}
+
+    /**
+     * 
+	 */
+	export async function getUsers(userIds: Array<string>) {
+
+		const connection = await Mongo.getConnection();
+		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+		const userQueryResult = await sitelineMongo.find({ "_id": { $in: userIds.map((id) => new ObjectId(id)) } }, { projection: { "_id": 1, "displayName": 1 } }).toArray();
+        
+		return userQueryResult ? {
+			data: userQueryResult
+		} : null;
+	}
+
+	/**
+     * 
+	 */
+	export async function getMe(userId: string) {
+
+		const connection = await Mongo.getConnection();
+		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
+
+		const userQueryResult = await sitelineMongo.findOne({ "_id": new ObjectId(userId)});
+
+		return userQueryResult ? {
+			data: {
+                userId: userQueryResult._id,
                 displayName: userQueryResult.displayName,
                 createdTimestamp: userQueryResult.createdTimestamp,
                 emailPreferences: userQueryResult.emailPreferences

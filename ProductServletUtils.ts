@@ -1,13 +1,22 @@
 import { Mongo } from "./Mongo";
-import { ObjectID, ObjectId, Sort } from "mongodb";
+import { ObjectId, Sort } from "mongodb";
 import _ from "lodash";
 import { SearchExpression, OrderExpression } from "./models/SearchExpression";
 import { Product } from "./models/Product";
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 /**
  * The name of the mongo collection for this resource
  */
 const COLLECTION_NAME = 'product';
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+	cloud_name: process.env.CLOUD_NAME,
+	api_key: process.env.API_KEY,
+	api_secret: process.env.API_SECRET
+});
 
 export namespace ProductServletUtils {
 	/**
