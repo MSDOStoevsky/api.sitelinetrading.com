@@ -1,9 +1,8 @@
 import { Mongo } from "./Mongo";
 import { ObjectID, ObjectId } from "mongodb";
 import _ from "lodash";
-import { SearchExpression, OrderExpression } from "./models/SearchExpression";
-import { Message, StartThread, Thread } from "./models/Thread";
-import { Console } from "console";
+import { SearchExpression } from "./models/SearchExpression";
+import { StartThread, Thread } from "./models/Thread";
 
 /**
  * The name of the mongo collection for this resource
@@ -43,8 +42,6 @@ export namespace MessageServletUtils {
 			const pageOffset = searchRequest.page >= 1 ? pageSize * searchRequest.page : 0;
 
 			const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-			console.log(translateFilterExpression(searchRequest.filterExpression));
 
 			const searchQuery = collection
 				.find(

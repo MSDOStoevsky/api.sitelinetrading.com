@@ -43,8 +43,16 @@ export namespace UserServlet {
 		if (isBadRequest(request)) {
 			result.status(400);
 		}
-		const userId = request.params.id;
-		result.json(await UserServletUtils.getUser(userId));
+		const token = _.split(request.headers.authorization, " ")[1];
+		
+		jwt.verify(token, "shhhhh", async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				const userId = request.params.id;
+				result.json(await UserServletUtils.getUser(userId));
+			}
+		});
 	});
 
 	/**
@@ -54,7 +62,14 @@ export namespace UserServlet {
 		if (isBadRequest(request)) {
 			result.status(400);
 		}
-		result.json(await UserServletUtils.getUsers(request.body.userIds));
+		const token = _.split(request.headers.authorization, " ")[1];
+		jwt.verify(token, "shhhhh", async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				result.json(await UserServletUtils.getUsers(request.body?.userIds));
+			}
+		});
 	});
 
 	/**
