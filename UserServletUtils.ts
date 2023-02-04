@@ -103,7 +103,7 @@ export namespace UserServletUtils {
         
 
         try {
-            const token = jwt.sign({ id: `${userResult._id}`, password: userLoginRequest.password}, 'shhhhh', {
+            const token = jwt.sign({ id: `${userResult._id}`, password: userLoginRequest.password}, process.env.BCRYPT_SECRET as string, {
                 expiresIn: "24h"
             });
             return {
@@ -136,7 +136,7 @@ export namespace UserServletUtils {
             );
             return {
                 status: "success",
-                token: jwt.sign({id: `${result.insertedId}`, password: createUserRequest.password}, 'shhhhh', {
+                token: jwt.sign({id: `${result.insertedId}`, password: createUserRequest.password}, process.env.BCRYPT_SECRET as string, {
                     expiresIn: "24h"
                 })
             };

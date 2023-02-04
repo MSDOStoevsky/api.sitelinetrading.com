@@ -21,12 +21,17 @@ export namespace MessageServletUtils {
 		 */
 		const translateFilterExpression = (filterExpression: any) => {
 			return _(filterExpression)
-				.mapValues((filterValue) => {
+				.mapValues((filterValue, key) => {
+					if ( key === "userId") {
+						return filterValue;
+					}
 					if ( typeof filterValue === "string" ) {
-						return { $regex: `.*${filterValue}.*`};
+						return { $regex: `.*${filterValue}.*`, $options: "i" };
 					}
 
-					return filterValue;
+					if ( typeof filterValue === "boolean" ) {
+						return filterValue;
+					}
 				})
 				.value();
 		};

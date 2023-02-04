@@ -3,6 +3,9 @@ import _ from "lodash";
 import * as jwt from "jsonwebtoken";
 import { UserServletUtils } from "./UserServletUtils";
 import { isBadRequest } from "./utils/isBadRequest";
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 
 export namespace UserServlet {
 	/**
@@ -22,7 +25,7 @@ export namespace UserServlet {
 			result.status(400);
 		}
 		const token = _.split(request.headers.authorization, " ")[1];
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
@@ -45,7 +48,7 @@ export namespace UserServlet {
 		}
 		const token = _.split(request.headers.authorization, " ")[1];
 		
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
@@ -63,7 +66,7 @@ export namespace UserServlet {
 			result.status(400);
 		}
 		const token = _.split(request.headers.authorization, " ")[1];
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {

@@ -51,7 +51,7 @@ export namespace ProductServlet {
 		}
 		const uploadedImage = request.file;
 		const token = _.split(request.headers.authorization, " ")[1];
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
@@ -86,7 +86,7 @@ export namespace ProductServlet {
 			result.status(400);
 		}
 		const token = _.split(request.headers.authorization, " ")[1];
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
@@ -114,7 +114,7 @@ export namespace ProductServlet {
 		}
 		const uploadedImage = request.file;
 		const token = _.split(request.headers.authorization, " ")[1];
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {

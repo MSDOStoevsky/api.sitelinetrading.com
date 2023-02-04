@@ -19,7 +19,7 @@ export namespace MessageServlet {
 	 */
 	router.post("/search", async (request, result) => {
 		const token = _.split(request.headers.authorization, " ")[1];
-		jwt.verify(token, "shhhhh", async (error, decoded) => {
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
@@ -32,22 +32,50 @@ export namespace MessageServlet {
      * 
 	 */
 	router.get("/:id", async (request, result) => {
-		const threadId = request.params.id;
-		result.json(await MessageServletUtils.getThread(threadId));
+		const token = _.split(request.headers.authorization, " ")[1];
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				const threadId = request.params.id;
+				result.json(await MessageServletUtils.getThread(threadId));
+			}
+		});
 	});
 
 	/**
      * 
 	 */
 	 router.post("/:id", async (request, result) => {
-		const threadId = request.params.id;
-		result.json(await MessageServletUtils.sendMessage(threadId, request.body));
+		const token = _.split(request.headers.authorization, " ")[1];
+		const requestBody = request.body;
+
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				const userId = decoded.id;
+				if ( requestBody.userId !== userId) {
+					result.status(400)
+				} else {
+					const threadId = request.params.id;
+					result.json(await MessageServletUtils.sendMessage(threadId, request.body));
+				}
+			}
+		});
 	});
 
 	/**
      * 
 	 */
 	router.post("/", async (request, result) => {
-		result.json(await MessageServletUtils.startThread(request.body));
+		const token = _.split(request.headers.authorization, " ")[1];
+		jwt.verify(token, process.env.BCRYPT_SECRET as string, async (error, decoded) => {
+			if ( error !== null || !decoded || typeof decoded === "string") {
+				result.status(400).json({ error: "Expired Token Error" });
+			} else {
+				result.json(await MessageServletUtils.startThread(request.body));
+			}
+		});
 	});
 }
