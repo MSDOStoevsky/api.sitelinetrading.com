@@ -1,7 +1,7 @@
 import { MongoClient } from "mongodb";
 import * as dotenv from 'dotenv';
 dotenv.config();
-const MONGO_CONNECTION_URL = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@192.168.1.249:27017/?directConnection=true&serverSelectionTimeoutMS=2000`;
+const MONGO_CONNECTION_URL = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@${process.env.MONGO_IP}:27017/siteline?directConnection=true&serverSelectionTimeoutMS=2000`;
 
 /**
  * The name of this database.

@@ -36,7 +36,16 @@ export namespace MessageServletUtils {
 				.value();
 		};
 
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
+
 		try {
 			// Captures events where user omits the desired page size or when
 			// the user is stupid and says they want 0 rows per page.
@@ -97,7 +106,15 @@ export namespace MessageServletUtils {
 	 */
 	export async function getThread(threadId: string) {
 
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
@@ -129,7 +146,15 @@ export namespace MessageServletUtils {
 				error: ""
 			}
 		}
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
@@ -153,7 +178,15 @@ export namespace MessageServletUtils {
 	 * 
 	 */
 	export async function sendMessage(threadId: string, body: { message: string, userId: string }): Promise<any> {
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 

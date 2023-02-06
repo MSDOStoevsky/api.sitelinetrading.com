@@ -55,7 +55,16 @@ export namespace ProductServletUtils {
 				.value();
 		};
 
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
+
 		try {
 			// Captures events where user omits the desired page size or when
 			// the user is stupid and says they want 0 rows per page.
@@ -110,8 +119,16 @@ export namespace ProductServletUtils {
 	 * 
 	 */
 	export async function getProduct(productId: string) {
-
-		const connection = await Mongo.getConnection();
+		
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const productCollection = await Mongo.getCollection(connection, COLLECTION_NAME);
 		const productQuery = (await productCollection.findOne<Product>({ "_id": new ObjectId(productId)}));
@@ -135,7 +152,15 @@ export namespace ProductServletUtils {
 	 * 
 	 */
 	export async function addProduct(productForPost: Product): Promise<any> {
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
@@ -148,7 +173,15 @@ export namespace ProductServletUtils {
 	}
 
 	export async function updateProduct(productId: string, productForUpdate: Partial<Product>): Promise<any> {
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
@@ -162,7 +195,15 @@ export namespace ProductServletUtils {
 	}
 
 	export async function deleteProduct(productId: string): Promise<any> {
-		const connection = await Mongo.getConnection();
+		let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
 
 		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 

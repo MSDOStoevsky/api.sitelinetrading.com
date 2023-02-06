@@ -120,7 +120,15 @@ export namespace UserServletUtils {
      * 
      */
 	export async function create(createUserRequest: CreateUserRequest) {
-        const connection = await Mongo.getConnection();
+        let connection;
+		try {
+			connection = await Mongo.getConnection();
+		} catch (error) {
+			return {
+				status: "failure",
+				message: error
+			};
+		}
         const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
 
         const hashedPassword = await bcrypt.hash(createUserRequest.password, 10);
