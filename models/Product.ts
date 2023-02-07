@@ -7,7 +7,7 @@ export interface Product {
 
     description: string;
 
-    value: string;
+    value: number;
 
     openToTrade: boolean;
 
