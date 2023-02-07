@@ -9,7 +9,7 @@ import { FeedbackServlet } from "./feedbackServlet";
 const app = express();
 const PORT = 8000;
 app.use(cors({
-	origin: 'http://sitelinetrading.com',
+	origin: 'https://sitelinetrading.com',
 	optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
 }));
 app.use(express.json());
