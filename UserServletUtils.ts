@@ -1,5 +1,3 @@
-import { Mongo } from "./Mongo";
-import { Filter, ObjectId, Document } from "mongodb";
 import * as jwt from "jsonwebtoken";
 import { UserLoginRequest } from "./models/UserLoginRequest";
 import { CreateUserRequest } from "./models/CreateUserRequest";
