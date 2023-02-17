@@ -1,15 +1,12 @@
-import { Mongo } from "./Mongo";
-import { ObjectId, Sort } from "mongodb";
 import _ from "lodash";
-import { SearchExpression, OrderExpression } from "./models/SearchExpression";
+import { SearchExpression } from "./models/SearchExpression";
 import { Product } from "./models/Product";
 import * as dotenv from 'dotenv';
+import { SQLite } from "./Sqlite";
+import { v4 as uuidv4 } from 'uuid';
+import { packIntoArray } from "./utils/packIntoArray";
 dotenv.config();
 
-/**
- * The name of the mongo collection for this resource
- */
-const COLLECTION_NAME = 'product';
 const cloudinary = require('cloudinary').v2;
 
 cloudinary.config({
@@ -19,198 +16,121 @@ cloudinary.config({
 });
 
 export namespace ProductServletUtils {
-	/**
-	 * 
-	 */
+
 	export async function search(searchRequest: SearchExpression) {
-		const defaultMaxPageSize = 1000;
-
-		/**
-		 * 
-		 */
-		const translateSortExpression = (sortExpression: OrderExpression): Sort => {
-			return {
-				[sortExpression.field]:
-					sortExpression.order === "ASC" ? 1 : sortExpression.order === "DESC" ? -1 : -1
-			};
-		};
-
-		/**
-		 * 
-		 */
+		
 		const translateFilterExpression = (filterExpression: any) => {
-			return _(filterExpression)
-				.mapValues((filterValue, key) => {
+			return _(filterExpression).pickBy((filterValue) => {
+				return !!filterValue;
+			}).map((filterValue, key) => {
 					if ( key === "userId") {
-						return filterValue;
-					}
-					if ( typeof filterValue === "string" ) {
-						return { $regex: `.*${filterValue}.*`, $options: "i" };
+						return `${key} = '${filterValue}'`
 					}
 
 					if ( typeof filterValue === "boolean" ) {
-						return filterValue;
+						return `${key} = ${filterValue ? 1 : 0}`;
 					}
-				})
-				.value();
+
+					if ( typeof filterValue === "string" ) {
+						return `${key} LIKE '%${filterValue}%'`;
+					} 
+
+					return `${key} LIKE '%${filterValue}%'`;
+				}).value();
 		};
 
-		let connection;
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
+			const pageEnd = (searchRequest.page + 1) * searchRequest.pageSize;
+			const pageStart = pageEnd - searchRequest.pageSize;
+			const field = searchRequest.orderBy.field === "createdTimestamp" ? "product.createdTimestamp" : searchRequest.orderBy.field;
+			const orderString = searchRequest.orderBy ? `${field} ${searchRequest.orderBy.order}` : "product.createdTimestamp DESC";
+			const filterExpression = translateFilterExpression(searchRequest.filterExpression);
+			const search = SQLite.prepare(`SELECT id, userId, displayName, title, description, value, openToTrade, createdTimestamp, image, state
+			FROM    ( SELECT    ROW_NUMBER() OVER ( ORDER BY ${orderString} ) AS RowNum, 
+								product.id as id,
+								userId,
+								displayName,
+								title,
+								description,
+								value,
+								openToTrade,
+								product.createdTimestamp,
+								image,
+								state
+					  FROM      product
+					  LEFT JOIN user ON user.id = userId
+					  ${_.isEmpty(filterExpression) ? "":`WHERE ${filterExpression.join(" AND ")}`}
+					) AS RowConstrainedResult
+			WHERE   RowNum >= ${pageStart}
+				AND RowNum < ${pageEnd}
+			ORDER BY RowNum`).all();
+			const totalItems = SQLite.prepare(`SELECT COUNT(*) as numberOfItems from product`).get().numberOfItems;
 			return {
-				status: "failure",
-				message: error
-			};
-		}
-
-		try {
-			// Captures events where user omits the desired page size or when
-			// the user is stupid and says they want 0 rows per page.
-			const pageSize = searchRequest.pageSize || defaultMaxPageSize;
-
-			// Mongo understands pagination by offsetting the results by literal number
-			// of records. This translates a single-digit page to its equivalent in row numbers.
-			const pageOffset = searchRequest.page >= 1 ? pageSize * searchRequest.page : 0;
-
-			const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-			const productSearchQuery = collection
-				.find(
-					searchRequest.filterExpression
-						? translateFilterExpression(searchRequest.filterExpression)
-						: {},
-					{
-						sort:
-							searchRequest.orderBy &&
-							translateSortExpression(searchRequest.orderBy),
-						limit: pageSize
-					}
-				)
-				.skip(pageOffset);
-
-			const pageInfoQuery = collection.countDocuments(
-				searchRequest.filterExpression
-					? translateFilterExpression(searchRequest.filterExpression)
-					: {});
-
-			const data = await productSearchQuery.toArray();
-			const count = await pageInfoQuery;
-
-			return {
-				data: data,
+				data: packIntoArray(search),
 				pageInfo: {
+					totalItems,
 					currentPage: searchRequest.page,
-					totalItems: count,
-					totalPages: _.ceil(count / pageSize)
+					totalPages: _.ceil(totalItems / searchRequest.pageSize)
 				}
-			};
-		} catch (error) {
-			return {
-				status: "failure",
-				message: error
-			};
-		} finally {
-			connection.close();
-		}
-	}
-
-	/**
-	 * 
-	 */
-	export async function getProduct(productId: string) {
-		
-		let connection;
-		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
-			return {
-				status: "failure",
-				message: error
-			};
-		}
-
-		const productCollection = await Mongo.getCollection(connection, COLLECTION_NAME);
-		const productQuery = (await productCollection.findOne<Product>({ "_id": new ObjectId(productId)}));
-		
-		if ( productQuery === null) {
-			return {
-				data: null
 			}
+		} catch ( error ) {
+			throw error;
 		}
+	}
 
-		const userCollection = await Mongo.getCollection(connection, "user");
-		const userQuery = await userCollection.findOne({ "_id": new ObjectId(productQuery.userId) }, { projection: { "displayName": 1, "_id": 0} });
-
-		return {
-			data: {...productQuery, ...userQuery}
-		};
+	export function getProduct(productId: string): { data?: Product, error?: any } {
+		try {
+			const stmt = SQLite.prepare(`
+				SELECT product.id, userId, title, description, value, user.displayName, openToTrade, product.createdTimestamp, product.updatedTimestamp, image, state 
+				FROM product 
+				LEFT JOIN user ON user.id = product.userId 
+				WHERE product.id = ?;
+			`);
+			return {
+				data: stmt.get(productId) || null
+			}
+		} catch ( error ) {
+			console.log(error)
+			throw error;
+		}
 	}
 
 
-	/**
-	 * 
-	 */
-	export async function addProduct(productForPost: Product): Promise<any> {
-		let connection;
+	export function addProduct(productForPost: Product): any {
+		const insertedId = uuidv4();
+		const now = Date.now();
+		const stmt = SQLite.prepare('INSERT INTO product (id, userId, title, state, image, description, value, openToTrade, createdTimestamp, updatedTimestamp) VALUES (?,?,?,?,?,?,?,?,?,?)');
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
+			stmt.run(insertedId, productForPost.userId, productForPost.title, productForPost.state, productForPost.image, productForPost.description, productForPost.value, productForPost.openToTrade ? 1 : 0, now, now);
 			return {
-				status: "failure",
-				message: error
-			};
+				data: { insertedId }
+			}
+		} catch ( error ) {
+			throw error;
 		}
-
-		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const productQuery = await collection.insertOne({...productForPost, 
-			createdTimestamp: Date.now(), updatedTimestamp: Date.now()});
-
-		return {
-			data: productQuery
-		};
 	}
 
 	export async function updateProduct(productId: string, productForUpdate: Partial<Product>): Promise<any> {
-		let connection;
+		const insertedId = uuidv4();
+		const stmt = SQLite.prepare('UPDATE product SET id = ?, userId = ?, title = ?, image = ?, description = ?, value = ?, openToTrade = ?, updatedTimestamp = ?');
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
+			stmt.run(insertedId, productForUpdate.title, productForUpdate.image, productForUpdate.description, productForUpdate.value, String(productForUpdate.openToTrade), Date.now());
 			return {
-				status: "failure",
-				message: error
-			};
+				data: { updatedId: productId }
+			}
+		} catch ( error ) {
+			throw error;
 		}
-
-		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const productQuery = await collection.updateOne({ _id: new ObjectId(productId)}, {
-			$set: {...productForUpdate, updatedTimestamp: Date.now()}
-		});
-
-		return {
-			data: productQuery
-		};
 	}
 
 	export async function deleteProduct(productId: string): Promise<any> {
-		let connection;
+		SQLite.prepare('DELETE FROM product WHERE id = ?').run(productId);
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
 			return {
-				status: "failure",
-				message: error
-			};
+				data: { deletedId: productId }
+			}
+		} catch ( error ) {
+			throw error;
 		}
-
-		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const productQuery = await collection.deleteMany({ _id: new ObjectId(productId)});
-
-		return {
-			data: productQuery
-		};
 	}
 }

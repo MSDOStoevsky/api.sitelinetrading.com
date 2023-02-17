@@ -27,30 +27,14 @@ export namespace FeedbackServlet {
 	/**
 	 * 
 	 */
-	router.post("/:id", async (request, result) => {
-		if (isBadRequest(request)) {
-			result.status(400);
-		}
-		const feedbackId = request.params.id;
-			const dbOp = await FeedbackServletUtil.postUserFeedback(feedbackId, request.body);
-			
-			if ( dbOp && (dbOp as any).status === "failure") {
-
-				result.status(500).json(dbOp);
-			} else {
-
-				result.json(dbOp);
-			}
-	});
-
-
-	/**
-	 * 
-	 */
 	router.post("/", async (request, result) => {
 		if (isBadRequest(request)) {
 			result.status(400);
 		}
-		result.json(await FeedbackServletUtil.startUserFeedback(request.body));
+		try {
+			result.json(await FeedbackServletUtil.postUserFeedback(request.body));
+		} catch ( error ) {
+			result.status(500).json(error);
+		}
 	});
 }

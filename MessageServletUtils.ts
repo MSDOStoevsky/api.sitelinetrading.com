@@ -1,207 +1,103 @@
-import { Mongo } from "./Mongo";
-import { ObjectID, ObjectId } from "mongodb";
 import _ from "lodash";
 import { SearchExpression } from "./models/SearchExpression";
-import { StartThread, Thread } from "./models/Thread";
+import { StartThread } from "./models/Thread";
+import { v4 as uuidv4 } from 'uuid';
+import { SQLite } from "./Sqlite";
+import { packIntoArray } from "./utils/packIntoArray";
 
-/**
- * The name of the mongo collection for this resource
- */
-const COLLECTION_NAME = 'message';
 
 export namespace MessageServletUtils {
 	/**
 	 * 
 	 */
 	export async function search(userId: string, searchRequest: SearchExpression) {
-		const defaultMaxPageSize = 1000;
-
-		/**
-		 * 
-		 */
 		const translateFilterExpression = (filterExpression: any) => {
-			return _(filterExpression)
-				.mapValues((filterValue, key) => {
+			return _(filterExpression).pickBy((filterValue) => {
+				return !!filterValue;
+			}).map((filterValue, key) => {
 					if ( key === "userId") {
-						return filterValue;
+						return `${key} = '${filterValue}'`
 					}
+
 					if ( typeof filterValue === "string" ) {
-						return { $regex: `.*${filterValue}.*`, $options: "i" };
+						return `${key} LIKE '%${filterValue}%'`;
 					}
-
-					if ( typeof filterValue === "boolean" ) {
-						return filterValue;
-					}
-				})
-				.value();
+				}).value();
 		};
 
-		let connection;
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
+			const pageEnd = (searchRequest.page + 1) * searchRequest.pageSize;
+			const pageStart = pageEnd - searchRequest.pageSize;
+			// const orderString = searchRequest.orderBy ? `${searchRequest.orderBy.field} ${searchRequest.orderBy.order}` : "createdTimestamp DESC";
+			const filterExpression = translateFilterExpression(searchRequest.filterExpression);
+			const searchResults = SQLite.prepare(`SELECT id, userId1, displayName, userId2, displayName2
+			FROM    ( SELECT    ROW_NUMBER() OVER ( ORDER BY thread.id DESC ) AS RowNum, thread.id, thread.userId1, user1.displayName, thread.userId2, user2.displayName as displayName2
+					  FROM      thread
+					  LEFT JOIN user as user1 ON thread.userId1 = user1.id 
+					  LEFT JOIN user as user2 ON thread.userId2 = user2.id
+					  WHERE thread.userId1 = '${userId}' OR thread.userId2 = '${userId}'
+					  GROUP BY thread.id
+					) AS RowConstrainedResult
+			WHERE   RowNum >= ${pageStart}
+				AND RowNum < ${pageEnd}
+			ORDER BY RowNum`).get();
+
+			const totalItems = SQLite.prepare(`SELECT COUNT(*) as numberOfItems from thread`).get().numberOfItems;
 			return {
-				status: "failure",
-				message: error
-			};
-		}
-
-		try {
-			// Captures events where user omits the desired page size or when
-			// the user is stupid and says they want 0 rows per page.
-			const pageSize = searchRequest.pageSize || defaultMaxPageSize;
-
-			// Mongo understands pagination by offsetting the results by literal number
-			// of records. This translates a single-digit page to its equivalent in row numbers.
-			const pageOffset = searchRequest.page >= 1 ? pageSize * searchRequest.page : 0;
-
-			const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-			const searchQuery = collection
-				.find(
-					{
-						"userIds": userId
-					},
-					{
-						limit: pageSize,
-						projection: { "chat": 0 }
-					}
-				)
-				.skip(pageOffset);
-
-			const pageInfoQuery = collection.countDocuments(
-				{
-					"userIds": userId
-				},
-				{
-					limit: pageSize,
-					/*sort:
-						searchRequest.orderBy &&
-						translateSortExpression(searchRequest.orderBy),*/
-				});
-
-			const data = await searchQuery.toArray();
-			const count = await pageInfoQuery;
-
-			return {
-				data: data,
+				data:  packIntoArray(searchResults),
 				pageInfo: {
+					totalItems,
 					currentPage: searchRequest.page,
-					totalItems: count,
-					totalPages: _.ceil(count / pageSize)
+					totalPages: _.ceil(totalItems / searchRequest.pageSize)
 				}
-			};
-		} catch (error) {
-			return {
-				status: "failure",
-				message: error
-			};
-		} finally {
-			connection.close();
+			}
+		} catch ( error ) {
+			throw error;
 		}
 	}
 
-	/**
-     * 
-	 */
 	export async function getThread(threadId: string) {
-
-		let connection;
+		const messages = SQLite.prepare(
+			`SELECT message.id, message.userId, message.timestamp, threadId, displayName, message FROM message 
+			LEFT JOIN user on message.userId = user.id 
+			WHERE threadId = ? 
+			ORDER BY timestamp DESC;`
+			).all(threadId);
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
 			return {
-				status: "failure",
-				message: error
-			};
-		}
-
-		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const productQuery = await collection.findOne<Thread>({ "_id": new ObjectId(threadId)});
-		
-		if ( productQuery === null) {
-			return {
-				data: null
+				data: packIntoArray(messages)
 			}
+		} catch ( error ) {
+			throw error;
 		}
-
-		// const userQuery = await collection.findOne({ "_id": new ObjectId(productQuery.userId)});
-
-		return {
-			data: {...productQuery}
-		};
 	}
 
-
-	/**
-	 * 
-	 */
 	export async function startThread(startThread: StartThread): Promise<any> {
-
-		const initialMessage = startThread.initialMessage;
-
-		if ( !initialMessage || !startThread.userIds) {
-			return {
-				error: ""
-			}
-		}
-		let connection;
+		const threadId = uuidv4();
+		const messageId = uuidv4();
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
+			const thread = SQLite.prepare('INSERT INTO thread (id, userId1, userId2) VALUES (?,?,?)');
+			const message = SQLite.prepare('INSERT INTO message (id, threadId, message, userId, timestamp) VALUES (?,?,?,?,?)');
+			thread.run(threadId, startThread.myId, startThread.userId);
+			message.run(messageId, threadId, startThread.initialMessage, startThread.myId, Date.now());
 			return {
-				status: "failure",
-				message: error
-			};
+				data: { threadId }
+			}
+		} catch ( error ) {
+			throw error;
 		}
-
-		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const query = await collection.insertOne({
-			userIds: startThread.userIds,
-			chat: [
-				{
-					timestamp: Date.now(),
-					message: initialMessage.message,
-					userId: initialMessage.userId
-				}
-			]
-		});
-
-		return {
-			data: query
-		};
 	}
 
-	/**
-	 * 
-	 */
 	export async function sendMessage(threadId: string, body: { message: string, userId: string }): Promise<any> {
-		let connection;
+		const insertedId = uuidv4();
+		const stmt = SQLite.prepare('INSERT INTO message (id, threadId, message, userId, timestamp) VALUES (?,?,?,?,?)');
 		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
+			stmt.run(insertedId, threadId, body.message, body.userId, Date.now());
 			return {
-				status: "failure",
-				message: error
-			};
+				data: { insertedId }
+			}
+		} catch ( error ) {
+			throw error;
 		}
-
-		const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const productQuery = await collection.updateOne({ _id: new ObjectId(threadId) }, { 
-			$push: { 
-					chat: {
-						userId: body.userId,
-						timestamp: Date.now(),
-						message: body.message
-					}
-				}
-		});
-
-		return {
-			data: productQuery
-		};
 	}
 }

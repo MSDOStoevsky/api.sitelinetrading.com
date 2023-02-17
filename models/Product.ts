@@ -5,6 +5,8 @@ export interface Product {
 
     image: any;
 
+    state: string;
+
     description: string;
 
     value: number;

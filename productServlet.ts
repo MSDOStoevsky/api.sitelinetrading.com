@@ -31,13 +31,11 @@ export namespace ProductServlet {
 	 */
 	router.get("/:id", async (request, result) => {
 		const productId = request.params.id;
-		const getProductResponse = await ProductServletUtils.getProduct(productId);
-		if ( getProductResponse ) {
+		try { 
+			const getProductResponse = ProductServletUtils.getProduct(productId);
 			result.json(getProductResponse);
-		} else {
-			result.json({
-				data: null
-			})
+		} catch (error) {
+			result.status(500).json({ error });
 		}
 	});
 
@@ -120,16 +118,20 @@ export namespace ProductServlet {
 			} else {
 				let productData = JSON.parse(request.body.data) as Product;
 
-				if ( uploadedImage ) {
-					const uploadedImageResult = await cloudinary.uploader.upload(uploadedImage?.path!, { public_id: uploadedImage?.filename });
-					productData = { ...productData, image: uploadedImageResult.secure_url};
-				}
 				const userId = decoded.id;
 
 				if (userId !== productData.userId) {
 					result.status(500).json({status: "failure", message: "you do not have permission"});
 				} else {
-					result.json(await ProductServletUtils.addProduct(productData));
+					if ( uploadedImage ) {
+						const uploadedImageResult = await cloudinary.uploader.upload(uploadedImage?.path!, { public_id: uploadedImage?.filename });
+						productData = { ...productData, image: uploadedImageResult.secure_url};
+					}
+					try {
+						result.json(ProductServletUtils.addProduct(productData));
+					} catch( error) {
+						result.status(500).json({status: "failure", message: error});
+					}
 				}
 			}
 		});

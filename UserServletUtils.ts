@@ -1,12 +1,11 @@
 import { Mongo } from "./Mongo";
 import { Filter, ObjectId, Document } from "mongodb";
-import { v4 as uuidv4 } from 'uuid';
 import * as jwt from "jsonwebtoken";
-import { SearchExpression, OrderExpression } from "./models/SearchExpression";
-import { Product } from "./models/Product";
 import { UserLoginRequest } from "./models/UserLoginRequest";
 import { CreateUserRequest } from "./models/CreateUserRequest";
 import * as bcrypt from "bcrypt";
+import { SQLite } from "./Sqlite";
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * The name of the mongo collection for this resource
@@ -15,95 +14,66 @@ const COLLECTION_NAME = 'user';
 
 export namespace UserServletUtils {
 
-	/**
-     * 
-	 */
 	export async function getUser(userId: string) {
-
-		const connection = await Mongo.getConnection();
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const userQueryResult = await sitelineMongo.findOne({ "_id": new ObjectId(userId)});
-
-		return userQueryResult ? {
-			data: {
-                userId: userQueryResult._id,
-                displayName: userQueryResult.displayName
-            }
-		} : null;
+		const stmt = SQLite.prepare('SELECT id, displayName FROM user WHERE id = ?;');
+		try {
+			return {
+				data: stmt.get(userId) || null
+			}
+		} catch ( error ) {
+			throw error;
+		}
 	}
 
-    /**
-     * 
-	 */
 	export async function getUsers(userIds: Array<string>) {
-
-		const connection = await Mongo.getConnection();
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
-		const userQueryResult = await sitelineMongo.find({ "_id": { $in: userIds.map((id) => new ObjectId(id)) } }, { projection: { "_id": 1, "displayName": 1 } }).toArray();
-        
-		return userQueryResult ? {
-			data: userQueryResult
-		} : null;
+		const stmt = SQLite.prepare('SELECT id, displayName FROM user WHERE id = ?;');
+		try {
+			return {
+				data: stmt.get(...userIds) || null
+			}
+		} catch ( error ) {
+			throw error;
+		}
 	}
 
-	/**
-     * 
-	 */
 	export async function getMe(userId: string) {
-
-		const connection = await Mongo.getConnection();
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-		const userQueryResult = await sitelineMongo.findOne({ "_id": new ObjectId(userId)});
-
-		return userQueryResult ? {
-			data: {
-                userId: userQueryResult._id,
-                displayName: userQueryResult.displayName,
-                createdTimestamp: userQueryResult.createdTimestamp,
-                emailPreferences: userQueryResult.emailPreferences
-            }
-		} : null;
+		try {
+            const stmt = SQLite.prepare('SELECT id, displayName, createdTimestamp, emailPreferences FROM user WHERE id = ?;');
+			return {
+				data: stmt.get(userId) || null
+			}
+		} catch ( error ) {
+			throw error;
+		}
 	}
 
-	/**
-     * 
-     */
     export async function login(userLoginRequest: UserLoginRequest) {
-		const connection = await Mongo.getConnection();
-		const sitelineMongo = await Mongo.getCollection(connection, COLLECTION_NAME);
-
-        const userQuery: Filter<Document> = { $or: [
-            {"displayName": userLoginRequest.accountIdOrDisplayName}
-        ] }
-        try { 
-            userQuery.$or.push( {"_id": new ObjectId(userLoginRequest.accountIdOrDisplayName)} ) ;
-        } catch (error) {
-            console.log("this couldn't possibly be an ID");
-        } 
-        const userResult = await sitelineMongo.findOne(userQuery) as any;
-
-        if (!userResult) {
-            return {
-                status: "error",
-                message: "Something is wrong with either the account ID or password"
+        let userResult;
+        try {
+            userResult = SQLite.prepare('SELECT * FROM user WHERE id = ? OR displayName = ?;').get(userLoginRequest.accountIdOrDisplayName, userLoginRequest.accountIdOrDisplayName);
+        
+            if (!userResult) {
+                return {
+                    status: "error",
+                    message: "Something is wrong with either the account ID or password"
+                }
             }
-        }
 
-        const isPasswordMatch = await bcrypt.compare(userLoginRequest.password, userResult.password);
-        connection.close();
+            const isPasswordMatch = await bcrypt.compare(userLoginRequest.password, userResult.password);
 
-        if (!isPasswordMatch) {
-            return {
-                status: "error",
-                message: "password is incorrect"
+            if (!isPasswordMatch) {
+                return {
+                    status: "error",
+                    message: "password is incorrect"
+                }
             }
+        } catch(error) {
+            throw error;
         }
         
 
         try {
-            const token = jwt.sign({ id: `${userResult._id}`, password: userLoginRequest.password}, process.env.BCRYPT_SECRET as string, {
+            const token = jwt.sign({ id: `${userResult.id}`, password: userLoginRequest.password}, process.env.BCRYPT_SECRET as string, {
                 expiresIn: "24h"
             });
             return {
@@ -116,45 +86,22 @@ export namespace UserServletUtils {
         
     }
 
-    /**
-     * 
-     */
 	export async function create(createUserRequest: CreateUserRequest) {
-        let connection;
-		try {
-			connection = await Mongo.getConnection();
-		} catch (error) {
-			return {
-				status: "failure",
-				message: error
-			};
-		}
-        const collection = await Mongo.getCollection(connection, COLLECTION_NAME);
-
         const hashedPassword = await bcrypt.hash(createUserRequest.password, 10);
 
-        try {
-            const result = await collection.insertOne(
-                {
-                    displayName: createUserRequest.displayName,
-                    password: hashedPassword,
-                    createdTimestamp: Date.now(),
-                    emailPreferences: "none"
-                }
-            );
-            return {
+		const insertedId = uuidv4();
+		try {
+            const stmt = SQLite.prepare('INSERT INTO user (id, displayName, email, password, createdTimestamp) VALUES (?,?,?,?,?)');
+			stmt.run(insertedId, createUserRequest.displayName, undefined, hashedPassword, Date.now());
+			return {
                 status: "success",
-                token: jwt.sign({id: `${result.insertedId}`, password: createUserRequest.password}, process.env.BCRYPT_SECRET as string, {
+                token: jwt.sign({id: insertedId, password: createUserRequest.password}, process.env.BCRYPT_SECRET as string, {
                     expiresIn: "24h"
                 })
-            };
-        } catch (error) {
-            return {
-                status: "failure",
-                message: error
-            };
-        } finally {
-            connection.close();
-        }
+            }
+		} catch ( error ) {
+            console.log(error);
+			throw error;
+		}
     }
 }

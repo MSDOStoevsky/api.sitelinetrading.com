@@ -4,12 +4,14 @@ import { ProductServlet } from "./productServlet";
 import { UserServlet } from "./userServlet";
 import { MessageServlet } from "./messageServlet";
 import { FeedbackServlet } from "./feedbackServlet";
+import https from "https";
+import fs from "fs";
 
 
 const app = express();
 const PORT = 8000;
 app.use(cors({
-	origin: 'https://sitelinetrading.com',
+	origin: process.env.ORIGIN,
 	optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
 }));
 app.use(express.json());
@@ -20,6 +22,9 @@ app.use(UserServlet.PATH, UserServlet.router);
 app.use(MessageServlet.PATH, MessageServlet.router);
 app.use(FeedbackServlet.PATH, FeedbackServlet.router);
 
-app.listen(PORT, () => {
-	console.log(`⚡️[server]: Server is running at https://localhost:${PORT}`);
-});
+https.createServer({
+	key: fs.readFileSync("/etc/letsencrypt/live/sitelinetrading.com/privkey.pem"),
+	cert: fs.readFileSync("/etc/letsencrypt/live/sitelinetrading.com/fullchain.pem")
+  }, app).listen(PORT, () => {
+	console.log(`⚡️[server]: Server is running at https://sitelinetrading:${PORT}`);
+})

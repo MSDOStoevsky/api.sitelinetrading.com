@@ -80,8 +80,7 @@ export namespace UserServlet {
 	 */
 	router.post("/login", async ( request, result) => {
 		try {
-			const loginResult = await UserServletUtils.login(request.body);
-            result.json(loginResult);
+            result.json(await UserServletUtils.login(request.body));
 		} catch(error) {
 			result.status(500).json({ meesage: error });
 		}

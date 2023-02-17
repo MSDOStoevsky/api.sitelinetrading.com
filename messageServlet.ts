@@ -74,7 +74,11 @@ export namespace MessageServlet {
 			if ( error !== null || !decoded || typeof decoded === "string") {
 				result.status(400).json({ error: "Expired Token Error" });
 			} else {
-				result.json(await MessageServletUtils.startThread(request.body));
+				try {
+					result.json(await MessageServletUtils.startThread(request.body));
+				} catch( error ) {
+					result.status(500);
+				}
 			}
 		});
 	});
