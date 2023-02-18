@@ -59,7 +59,11 @@ export namespace MessageServlet {
 					result.status(400)
 				} else {
 					const threadId = request.params.id;
-					result.json(await MessageServletUtils.sendMessage(threadId, request.body));
+					try {
+						result.json(await MessageServletUtils.sendMessage(threadId, request.body));
+					} catch( error ) {
+						result.status(500).json(error);
+					}
 				}
 			}
 		});

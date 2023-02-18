@@ -89,6 +89,13 @@ export namespace MessageServletUtils {
 	}
 
 	export async function sendMessage(threadId: string, body: { message: string, userId: string }): Promise<any> {
+		if( !body.message ) {
+			throw {
+				status: "error",
+				message: "Empty message"
+			};
+		}
+
 		const insertedId = uuidv4();
 		const stmt = SQLite.prepare('INSERT INTO message (id, threadId, message, userId, timestamp) VALUES (?,?,?,?,?)');
 		try {
