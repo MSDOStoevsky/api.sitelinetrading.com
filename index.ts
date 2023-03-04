@@ -4,9 +4,9 @@ import { ProductServlet } from "./productServlet";
 import { UserServlet } from "./userServlet";
 import { MessageServlet } from "./messageServlet";
 import { FeedbackServlet } from "./feedbackServlet";
+import { FlagServlet } from "./flagServlet";
 import https from "https";
 import fs from "fs";
-
 
 const app = express();
 const PORT = 8000;
@@ -20,6 +20,7 @@ app.use(express.urlencoded());
 app.use(ProductServlet.PATH, ProductServlet.router);
 app.use(UserServlet.PATH, UserServlet.router);
 app.use(MessageServlet.PATH, MessageServlet.router);
+app.use(FlagServlet.PATH, FlagServlet.router);
 app.use(FeedbackServlet.PATH, FeedbackServlet.router);
 
 https.createServer({

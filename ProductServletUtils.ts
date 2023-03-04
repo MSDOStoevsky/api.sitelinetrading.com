@@ -111,10 +111,9 @@ export namespace ProductServletUtils {
 	}
 
 	export async function updateProduct(productId: string, productForUpdate: Partial<Product>): Promise<any> {
-		const insertedId = uuidv4();
-		const stmt = SQLite.prepare('UPDATE product SET id = ?, userId = ?, title = ?, image = ?, description = ?, value = ?, openToTrade = ?, updatedTimestamp = ?');
+		const stmt = SQLite.prepare('UPDATE product SET title = ?, image = ?, description = ?, value = ?, openToTrade = ?, updatedTimestamp = ? WHERE id = ?');
 		try {
-			stmt.run(insertedId, productForUpdate.title, productForUpdate.image, productForUpdate.description, productForUpdate.value, String(productForUpdate.openToTrade), Date.now());
+			stmt.run(productForUpdate.title, productForUpdate.image, productForUpdate.description, productForUpdate.value, String(productForUpdate.openToTrade), Date.now(), productId);
 			return {
 				data: { updatedId: productId }
 			}
